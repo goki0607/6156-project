@@ -1,0 +1,8 @@
+com/rvclass/labelchains/rewriter/UnsupportedProgramConstructException.class
+com/rvclass/labelchains/rewriter/DeclarationEvaluatorManager.class
+com/rvclass/labelchains/rewriter/UntakenBranchEvaluatorManager.class
+com/rvclass/labelchains/rewriter/ConditionEvaluatorManager.class
+com/rvclass/labelchains/rewriter/SecurityVisitor.class
+com/rvclass/labelchains/rewriter/AssignmentEvaluatorManager.class
+com/rvclass/labelchains/monitor/App.class
+com/rvclass/labelchains/util/Pair.class
