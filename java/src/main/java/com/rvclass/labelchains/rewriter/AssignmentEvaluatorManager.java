@@ -49,8 +49,8 @@ public class AssignmentEvaluatorManager {
   public ExpressionStmt populateRHS(String name, Iterator<SimpleName> args) {
     NodeList<Expression> e_args = new NodeList<>();
     while (args.hasNext()) {
-      //e_args.add(new NameExpr(args.next()));
-      e_args.add(new StringLiteralExpr(args.next().asString()));
+      e_args.add(new NameExpr(args.next()));
+      //e_args.add(new StringLiteralExpr(args.next().asString()));
     }
     NameExpr receiver = new NameExpr(name);
     SimpleName method = new SimpleName(AE_RHS);
@@ -60,8 +60,8 @@ public class AssignmentEvaluatorManager {
 
   public ExpressionStmt populateLHS(String name, SimpleName lhs) {
     NodeList<Expression> e_args = new NodeList<>();
-    //e_args.add(new NameExpr(lhs));
-    e_args.add(new StringLiteralExpr(lhs.asString()));
+    e_args.add(new NameExpr(lhs));
+    //e_args.add(new StringLiteralExpr(lhs.asString()));
     NameExpr receiver = new NameExpr(name);
     SimpleName method = new SimpleName(AE_LHS);
     MethodCallExpr call = new MethodCallExpr(receiver, method, e_args);
@@ -78,8 +78,8 @@ public class AssignmentEvaluatorManager {
   public ExpressionStmt generateSimCheck(String name, String lvl) {
     StringLiteralExpr lvl_e = new StringLiteralExpr(lvl);
     NodeList<Expression> e_args = new NodeList<>();
-    //e_args.add(lvl_e);
-    e_args.add(new StringLiteralExpr(lvl));
+    e_args.add(lvl_e);
+    //e_args.add(new StringLiteralExpr(lvl));
     NameExpr receiver = new NameExpr(name);
     SimpleName method = new SimpleName(AE_SIM);
     MethodCallExpr call = new MethodCallExpr(receiver, method, e_args);
@@ -88,8 +88,8 @@ public class AssignmentEvaluatorManager {
 
   public ExpressionStmt generateDeclCheck(String name, SimpleName var) {
     NodeList<Expression> e_args = new NodeList<>();
-    //e_args.add(new NameExpr(var));
-    e_args.add(new StringLiteralExpr(var.asString()));
+    e_args.add(new NameExpr(var));
+    //e_args.add(new StringLiteralExpr(var.asString()));
     NameExpr receiver = new NameExpr(name);
     SimpleName method = new SimpleName(AE_DECL);
     MethodCallExpr call = new MethodCallExpr(receiver, method, e_args);

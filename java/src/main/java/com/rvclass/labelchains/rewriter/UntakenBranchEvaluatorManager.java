@@ -47,8 +47,8 @@ public class UntakenBranchEvaluatorManager {
   public ExpressionStmt populateUBE(String name, Iterator<SimpleName> args) {
     NodeList<Expression> e_args = new NodeList<>();
     while (args.hasNext()) {
-      //e_args.add(new NameExpr(args.next()));
-      e_args.add(new StringLiteralExpr(args.next().asString()));
+      e_args.add(new NameExpr(args.next()));
+      //e_args.add(new StringLiteralExpr(args.next().asString()));
     }
     NameExpr receiver = new NameExpr(name);
     SimpleName method = new SimpleName(BE_ADD);
@@ -59,8 +59,8 @@ public class UntakenBranchEvaluatorManager {
   public ExpressionStmt depopulateUBE(String name, Iterator<SimpleName> args) {
     NodeList<Expression> e_args = new NodeList<>();
     while (args.hasNext()) {
-      //e_args.add(new NameExpr(args.next()));
-      e_args.add(new StringLiteralExpr(args.next().asString()));
+      e_args.add(new NameExpr(args.next()));
+      //e_args.add(new StringLiteralExpr(args.next().asString()));
     }
     NameExpr receiver = new NameExpr(name);
     SimpleName method = new SimpleName(BE_DEL);

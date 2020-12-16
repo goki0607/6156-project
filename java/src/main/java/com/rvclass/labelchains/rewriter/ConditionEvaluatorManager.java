@@ -48,8 +48,8 @@ public class ConditionEvaluatorManager {
   public ExpressionStmt populateCE(String name, Iterator<SimpleName> args) {
     NodeList<Expression> e_args = new NodeList<>();
     while (args.hasNext()) {
-      //e_args.add(new NameExpr(args.next()));
-      e_args.add(new StringLiteralExpr(args.next().asString()));
+      e_args.add(new NameExpr(args.next()));
+      //e_args.add(new StringLiteralExpr(args.next().asString()));
     }
     NameExpr receiver = new NameExpr(name);
     SimpleName method = new SimpleName(CE_ADD);

@@ -1,0 +1,11 @@
+int m : anchor of M = 10;
+int h : anchor of H = 0;
+int l : anchor of L = 1;
+int w : flex of [H, M, M] = 0;
+if (m > 0) then {
+  w := h;
+} else {
+  w := l;
+}
+m := w;
+l := 1;

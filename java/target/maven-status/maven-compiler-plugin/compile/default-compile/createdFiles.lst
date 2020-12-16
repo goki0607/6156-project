@@ -1,5 +1,6 @@
 com/rvclass/labelchains/rewriter/UnsupportedProgramConstructException.class
 com/rvclass/labelchains/rewriter/DeclarationEvaluatorManager.class
+com/rvclass/labelchains/rewriter/MethodCallEvaluatorManager.class
 com/rvclass/labelchains/rewriter/UntakenBranchEvaluatorManager.class
 com/rvclass/labelchains/rewriter/ConditionEvaluatorManager.class
 com/rvclass/labelchains/rewriter/SecurityVisitor.class

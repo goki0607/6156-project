@@ -13,6 +13,7 @@ import java.util.Set;
 import com.rvclass.labelchains.rewriter.AssignmentEvaluatorManager;
 import com.rvclass.labelchains.rewriter.ConditionEvaluatorManager;
 //import com.rvclass.labelchains.rewriter.DeclarationEvaluatorManager;
+import com.rvclass.labelchains.rewriter.MethodCallEvaluatorManager;
 import com.rvclass.labelchains.rewriter.UntakenBranchEvaluatorManager;
 import com.rvclass.labelchains.rewriter.UnsupportedProgramConstructException;
 import com.rvclass.labelchains.util.Pair;
@@ -63,6 +64,7 @@ import com.github.javaparser.ast.stmt.SwitchEntry;
 import com.github.javaparser.ast.stmt.SwitchStmt;
 import com.github.javaparser.ast.stmt.WhileStmt;
 // imports for types
+import com.github.javaparser.ast.type.ArrayType;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.PrimitiveType;
 import com.github.javaparser.ast.type.Type;
@@ -72,6 +74,7 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
   AssignmentEvaluatorManager aem = new AssignmentEvaluatorManager();
   ConditionEvaluatorManager cem = new ConditionEvaluatorManager();
   //DeclarationEvaluatorManager dem = new DeclarationEvaluatorManager();
+  MethodCallEvaluatorManager mcem = new MethodCallEvaluatorManager();
   UntakenBranchEvaluatorManager ubem = new UntakenBranchEvaluatorManager();
 
   private BlockStmt flattenBlockStmt(BlockStmt old_block) {
@@ -118,6 +121,9 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
     } */ else if (expr instanceof AssignExpr) {
       AssignExpr a_expr = (AssignExpr) expr;
       handleExpressionVariables(a_expr.getTarget(), assigned);
+      if (!(a_expr.getValue() instanceof NameExpr)) {
+        handleExpressionVariables(a_expr.getValue(), assigned);
+      }
       /*if (a_expr.getValue() instanceof ArrayAccessExpr ||
           a_expr.getValue() instanceof ArrayCreationExpr ||
           a_expr.getValue() instanceof ArrayInitializerExpr ||
@@ -132,15 +138,31 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
     } else if (expr instanceof NameExpr) {
       SimpleName s_name = ((NameExpr) expr).getName();
       assigned.add(s_name);
-    } 
-    /*else if (expr instanceof ArrayAccessExpr ||
+    } else if (expr instanceof SuperExpr) {
+      SuperExpr sexpr = (SuperExpr) expr;
+      if (sexpr.getClassExpr().isPresent()) {
+        handleExpressionVariables(sexpr.getClassExpr().get(), assigned);
+      }
+    } else if (expr instanceof ThisExpr) {
+      ThisExpr sexpr = (ThisExpr) expr;
+      if (sexpr.getClassExpr().isPresent()) {
+        handleExpressionVariables(sexpr.getClassExpr().get(), assigned);
+      }
+    } else if (expr instanceof UnaryExpr) {
+      UnaryExpr uexpr = (UnaryExpr) expr;
+      handleExpressionVariables(uexpr.getExpression(), assigned);
+    } else if (expr instanceof MethodCallExpr) {
+      MethodCallExpr mcexpr = (MethodCallExpr) expr;
+      for (Expression expr2 : mcexpr.getArguments()) {
+        handleExpressionVariables(expr2, assigned);
+      }
+      assigned.add(mcexpr.getName());
+    } else if (expr instanceof ArrayAccessExpr ||
           expr instanceof ArrayCreationExpr ||
-          expr instanceof ArrayInitializerExpr ||
-          expr instanceof MethodCallExpr ||
-          expr instanceof ObjectCreationExpr ||
-          expr instanceof SuperExpr ||
-          expr instanceof ThisExpr ||
-          expr instanceof UnaryExpr) {
+          expr instanceof ArrayInitializerExpr) {
+      throw new UnsupportedProgramConstructException("Arrays are not supported");
+    }
+    /*else if (expr instanceof ObjectCreationExpr)
       //updateAssigned(expr, assigned);
     }*/
   }
@@ -244,7 +266,41 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
       _arg = new Hashtable<String, String>();
     }
     super.visit(pt, _arg);
-    return pt.toBoxedType();
+    //return pt.toBoxedType();
+    Type typ = pt.toBoxedType();
+    NodeList<Type> args = new NodeList<>();
+    args.add(typ);
+    ClassOrInterfaceType n_Typ = new ClassOrInterfaceType(null, new SimpleName("Monitorable"), args);
+    return n_Typ;
+  }
+  
+  /* throw exceptions on array types */
+  public ArrayType visit(ArrayType at, Hashtable<String, String> _arg) {
+    if (_arg == null) {
+      _arg = new Hashtable<String, String>();
+    }
+    ArrayType at_p = at.clone();
+    super.visit(at, _arg);
+    Optional<MethodDeclaration> md_opt = at.findAncestor(MethodDeclaration.class);
+    if (md_opt.isPresent()) {
+      MethodDeclaration md = md_opt.get();
+      if (md.getName().asString().equals("main")) {
+        return at_p;
+      }
+    }
+    throw new UnsupportedProgramConstructException("Arrays are not supported");
+  }
+
+  /* wrap all class or interface types up */
+  public ClassOrInterfaceType visit(ClassOrInterfaceType typ, Hashtable<String, String> _arg) {
+    if (_arg == null) {
+      _arg = new Hashtable<String, String>();
+    }
+    super.visit(typ, _arg);
+    NodeList<Type> args = new NodeList<>();
+    args.add(typ);
+    ClassOrInterfaceType n_Typ = new ClassOrInterfaceType(null, new SimpleName("Monitorable"), args);
+    return n_Typ;
   }
 
   /* we need to visit all branches of an if-statement by side-stepping the visitor pattern */
@@ -303,12 +359,16 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
     } else {
       String new_ae_name = aem.newName();
       ExpressionStmt init = aem.createAE(new_ae_name);
-      List<NameExpr> rhs_names = ae.getValue().getChildNodesByType(NameExpr.class);
       List<SimpleName> rhs_s_names = new ArrayList<>();
-      for (NameExpr name : rhs_names) {
-        rhs_s_names.add(name.getName());
+      if (ae.getValue() instanceof NameExpr) {
+        rhs_s_names.add(((NameExpr) ae.getValue()).getName());
+      } else {
+        List<NameExpr> rhs_names = ae.getValue().getChildNodesByType(NameExpr.class);
+        for (NameExpr name : rhs_names) {
+          rhs_s_names.add(name.getName());
+        }
       }
-      rhs_s_names.addAll(ae.getValue().getChildNodesByType(SimpleName.class));
+      //rhs_s_names.addAll(ae.getValue().getChildNodesByType(SimpleName.class));
       ExpressionStmt rhs = aem.populateRHS(new_ae_name, rhs_s_names.iterator());
       List<SimpleName> lhs_names = ae.getTarget().getChildNodesByType(SimpleName.class);
       SimpleName lhs_s_name = lhs_names.get(0);
@@ -327,7 +387,20 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
       }
       new_block.add(rhs);
       new_block.add(check);
-      new_block.add(new ExpressionStmt(ae));
+      //new_block.add(new ExpressionStmt(ae));
+      NodeList<Expression> args = new NodeList<>();
+      Expression rhs_e = ae.getValue();
+      if (rhs_e instanceof NameExpr) {
+        rhs_e = new MethodCallExpr((NameExpr) rhs_e, new SimpleName("get"));
+      } else {
+        List<NameExpr> names_e = rhs_e.getChildNodesByType(NameExpr.class);
+        for (NameExpr name_e : names_e) {
+          name_e.replace(new MethodCallExpr(name_e, new SimpleName("get")));
+        }
+      }
+      args.add(rhs_e);
+      MethodCallExpr mce = new MethodCallExpr(new NameExpr(lhs_s_name), new SimpleName("set"), args);
+      new_block.add(new ExpressionStmt(mce));
       if (flag) {
         new_block.add(aem.generateDeclCheck(new_ae_name, lhs_s_name));
       }
@@ -358,8 +431,16 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
       Type typ = vd.getType();
       if (typ instanceof PrimitiveType) {
         typ = ((PrimitiveType) typ).toBoxedType();
+      } else if (typ instanceof ArrayType) {
+        throw new UnsupportedProgramConstructException("Arrays are not supported");
       }
-      VariableDeclarationExpr decl = new VariableDeclarationExpr(typ, vd.getName().asString());
+      NodeList<Type> args = new NodeList<>();
+      args.add(typ);
+      ClassOrInterfaceType typ_2 = new ClassOrInterfaceType(null, new SimpleName("Monitorable"), args);
+      ObjectCreationExpr initer = new ObjectCreationExpr(null, typ_2, new NodeList<Expression>());
+      VariableDeclarator vd1 = new VariableDeclarator(typ_2, vd.getName(), initer);
+      //VariableDeclarationExpr decl = new VariableDeclarationExpr(typ, vd.getName().asString());
+      VariableDeclarationExpr decl = new VariableDeclarationExpr(vd1);
       new_block.add(new ExpressionStmt(decl));
       /*
       String new_de_name = dem.newName();
@@ -387,24 +468,112 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
     return new Pair(new_block, tbd);
   }
 
+  /* process names */
+  @Override
+  public Expression visit(NameExpr ne, Hashtable<String, String> _arg) {
+    if (_arg == null) {
+      _arg = new Hashtable<String, String>();
+    }
+    super.visit(ne, _arg);
+    MethodCallExpr mce = new MethodCallExpr(ne, new SimpleName("get"));
+    return mce;
+  }
+
+  /* process method calls */
+  private NodeList<Statement> processMethodCalls(MethodCallExpr mce) {
+    NodeList<Statement> res = new NodeList<>();
+    List<SimpleName> rhs_names = new ArrayList<>();
+    for (Expression arg : mce.getArguments()) {
+      if (arg instanceof MethodCallExpr) {
+        res.addAll(processMethodCalls((MethodCallExpr) arg));
+        rhs_names.add(((MethodCallExpr) arg).getName());
+      } else {
+        for (MethodCallExpr arg_mce : arg.getChildNodesByType(MethodCallExpr.class)) {
+          res.addAll(processMethodCalls(arg_mce));
+        }
+      }
+      for (NameExpr name : arg.getChildNodesByType(NameExpr.class)) {
+        rhs_names.add(name.getName());
+      }
+    }
+    Optional<Expression> scope_opt = mce.getScope();
+    if (scope_opt.isPresent()) {
+      Expression scope = scope_opt.get();
+      SimpleName name;
+      if (scope instanceof NameExpr) {
+        name = ((NameExpr) scope).getName();
+      } else {
+        name = scope.getChildNodesByType(NameExpr.class).get(0).getName();
+      }
+      String new_mcem_name = mcem.newName();
+      Statement new_mcem = mcem.createMCE(new_mcem_name);
+      Statement rhs = mcem.populateRHS(new_mcem_name, rhs_names.iterator());
+      Statement lhs = mcem.populateLHS(new_mcem_name, name);
+      Statement check = mcem.generateCallCheck(new_mcem_name);
+      res.add(new_mcem);
+      res.add(rhs);
+      res.add(lhs);
+      res.add(check);
+    }
+    return res;
+
+  }
+
   /* process assignment expression and variable declaration expressions */
   @Override
   public Statement visit(ExpressionStmt st, Hashtable<String, String> _arg) {
     if (_arg == null) {
       _arg = new Hashtable<String, String>();
     }
-    super.visit(st, _arg);
-    if (st.getExpression() instanceof AssignExpr) {
+    if (st.getExpression() instanceof ArrayAccessExpr ||
+        st.getExpression() instanceof ArrayCreationExpr ||
+        st.getExpression() instanceof ArrayInitializerExpr ||
+        !st.getExpression().getChildNodesByType(ArrayAccessExpr.class).isEmpty() ||
+        !st.getExpression().getChildNodesByType(ArrayCreationExpr.class).isEmpty() ||
+        !st.getExpression().getChildNodesByType(ArrayInitializerExpr.class).isEmpty()) {
+      throw new UnsupportedProgramConstructException("Arrays are not supported");
+    } else if (st.getExpression() instanceof AssignExpr) {
       NodeList<Statement> new_block = new NodeList<>();
       AssignExpr ae = (AssignExpr) st.getExpression();
+      if (ae.getValue() instanceof MethodCallExpr) {
+        MethodCallExpr mce = (MethodCallExpr) ae.getValue();
+        new_block.addAll(processMethodCalls(mce));
+      } else {
+        for (MethodCallExpr mce : ae.getValue().getChildNodesByType(MethodCallExpr.class)) {
+          new_block.addAll(processMethodCalls(mce));
+        }
+      }
       new_block.addAll(processAssign(ae, _arg));
+      super.visit(st, _arg);
       return flattenBlockStmt(new BlockStmt(new_block));
     } else if (st.getExpression() instanceof VariableDeclarationExpr) {
       NodeList<Statement> new_block = new NodeList<>();
       VariableDeclarationExpr vde = (VariableDeclarationExpr) st.getExpression();
+      for (VariableDeclarator vd : vde.getVariables()) {
+        Optional<Expression> vd_init_opt = vd.getInitializer();
+        if (vd_init_opt.isPresent()) {
+          Expression vd_init = vd_init_opt.get();
+          if (vd_init instanceof MethodCallExpr) {
+            MethodCallExpr init_mce = (MethodCallExpr) vd_init;
+            new_block.addAll(processMethodCalls(init_mce));
+          } else {
+            for (MethodCallExpr mce : vd_init.getChildNodesByType(MethodCallExpr.class)) {
+              new_block.addAll(processMethodCalls(mce));
+            }
+          }
+        }
+      }
       Pair<NodeList<Statement>, Hashtable<String, String>> res = processDeclaration(vde);
       new_block.addAll(res.getFst());
       _arg.putAll(res.getSnd());
+      super.visit(st, _arg);
+      return flattenBlockStmt(new BlockStmt(new_block));
+    } else if (st.getExpression() instanceof MethodCallExpr) {
+      NodeList<Statement> new_block = new NodeList<>();
+      MethodCallExpr mce = (MethodCallExpr) st.getExpression();
+      new_block.addAll(processMethodCalls(mce));
+      super.visit(st, _arg);
+      new_block.add(st);
       return flattenBlockStmt(new BlockStmt(new_block));
     } else {
       return st;
@@ -435,7 +604,7 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
       List<ExpressionStmt> exprStmts = is_iter1.getThenStmt().getChildNodesByType(ExpressionStmt.class);
       Set<SimpleName> assigned_one = getGuardedVars(exprStmts);
       NodeList<Statement> gend_body = new NodeList<>();
-      //gend_body.add(ubem.depopulateUBE(new_ube_name, assigned_one.iterator()));
+      gend_body.add(ubem.depopulateUBE(new_ube_name, assigned_one.iterator()));
       gend_body.add(cem.generateBranchEnter(new_ce_name));
       is_iter2.setThenStmt(createOrExtendStmt(is_iter2.getThenStmt(), gend_body, true));
       is_iter1 = (IfStmt) is_iter1.getElseStmt().get();
@@ -449,14 +618,14 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
     Set<SimpleName> assigned_one = getGuardedVars(exprStmts);
     assigned.addAll(assigned_one);
     NodeList<Statement> gend_body = new NodeList<>();
-    //gend_body.add(ubem.depopulateUBE(new_ube_name, assigned_one.iterator()));
+    gend_body.add(ubem.depopulateUBE(new_ube_name, assigned_one.iterator()));
     gend_body.add(cem.generateBranchEnter(new_ce_name));
     is_iter2.setThenStmt(createOrExtendStmt(is_iter2.getThenStmt(), gend_body, true));
     if (flag) {
       exprStmts = is_iter1.getElseStmt().get().getChildNodesByType(ExpressionStmt.class);
       assigned_one = getGuardedVars(exprStmts);
       gend_body = new NodeList<>();
-      //gend_body.add(ubem.depopulateUBE(new_ube_name, assigned_one.iterator()));
+      gend_body.add(ubem.depopulateUBE(new_ube_name, assigned_one.iterator()));
       gend_body.add(cem.generateBranchEnter(new_ce_name));
       is_iter2.setElseStmt(createOrExtendStmt(is_iter2.getElseStmt().get(), gend_body, true));
       assigned.addAll(assigned_one);
@@ -548,7 +717,6 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
     Statement body = ws.getBody();
     List<ExpressionStmt> exprStmts = body.getChildNodesByType(ExpressionStmt.class);
     Set<SimpleName> assigned = getGuardedVars(exprStmts);
-    System.out.println(assigned);
     Expression cond = ws.getCondition();
     Set<SimpleName> condUsed = getGuardVars(cond);
     NodeList<Statement> new_block = new NodeList<>();

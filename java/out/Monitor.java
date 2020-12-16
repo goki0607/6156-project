@@ -20,8 +20,11 @@ public class Monitor {
     for (Object var : rhs_vars) {
       if (anchors.containsKey(var)) {
         rhs_lbls.add(anchors.get(var));
-      } else {
+      } else if (flexibles.containsKey(var)) {
         rhs_lbls.add(flexibles.get(var).get(0));
+      } else {
+        decl(var, new ArrayList<Object>(), "T");
+        rhs_lbls.add(anchors.get(var));
       }
     }
     rhs_lbls.add(cc.peek());
@@ -60,12 +63,20 @@ public class Monitor {
     for (Object var : rhs) {
       if (flexibles.containsKey(var)) {
         rhs_lbls.add(flexibles.get(var));
-      } else {
+      } else if (anchors.containsKey(var)) {
         ArrayList<LabelLattice.Label> tmp = new ArrayList<>();
+        tmp.add(anchors.get(var));
         for (int i = 0; i < k; i++) {
           tmp.add(LabelLattice.Label.BOT);
         }
-        tmp.add(0,  anchors.get(var));
+        rhs_lbls.add(tmp);
+      } else {
+        decl(var, new ArrayList<Object>(), "T");
+        ArrayList<LabelLattice.Label> tmp = new ArrayList<>();
+        tmp.add(anchors.get(var));
+        for (int i = 0; i < k; i++) {
+          tmp.add(LabelLattice.Label.BOT);
+        }
         rhs_lbls.add(tmp);
       }
     }
@@ -85,8 +96,10 @@ public class Monitor {
   public static void assign(Object lhs, ArrayList<Object> rhs) {
     if (anchors.containsKey(lhs)) {
       anchorAssign(lhs, rhs);
-    } else {
+    } else if (flexibles.containsKey(lhs)) {
       flexAssign(lhs, rhs);
+    } else {
+      decl(lhs, rhs, "T");
     }
   }
 
@@ -111,8 +124,11 @@ public class Monitor {
     for (Object var : vars) {
       if (anchors.containsKey(var)) {
         untaken_anchors_flag = true;
-      } else {
+      } else if (flexibles.containsKey(var)) {
         untaken_flexibles.add(var);
+      } else {
+        decl(var, new ArrayList<Object>(), "T");
+        untaken_anchors_flag = true;
       }
     }
     LabelLattice.Label bc_p = LabelLattice.join(bc, cc.peek());
@@ -137,6 +153,9 @@ public class Monitor {
         new_labels.add(anchors.get(var));
       } else if (flexibles.containsKey(var)) {
         new_labels.add(flexibles.get(var).get(0));
+      } else {
+        decl(var, new ArrayList<Object>(), "T");
+        new_labels.add(anchors.get(var));
       }
     }
     LabelLattice.Label new_ctx = LabelLattice.joins(new_labels);
