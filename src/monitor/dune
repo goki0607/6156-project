@@ -1,5 +1,0 @@
-(library
-  (name monitor)  
-  (libraries frontend)
-  (preprocess (pps ppx_deriving.show ppx_deriving.ord))
-)
