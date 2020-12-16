@@ -30,3 +30,6 @@ _opam/
 
 # MAC system files
 *.DS_Store
+
+# target director for mvn projects
+target/
