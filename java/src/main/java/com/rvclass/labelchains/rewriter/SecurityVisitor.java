@@ -265,7 +265,7 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
     if (_arg == null) {
       _arg = new Hashtable<String, String>();
     }
-    super.visit(pt, _arg);
+    //super.visit(pt, _arg);
     //return pt.toBoxedType();
     Type typ = pt.toBoxedType();
     NodeList<Type> args = new NodeList<>();
@@ -280,7 +280,7 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
       _arg = new Hashtable<String, String>();
     }
     ArrayType at_p = at.clone();
-    super.visit(at, _arg);
+    //super.visit(at, _arg);
     Optional<MethodDeclaration> md_opt = at.findAncestor(MethodDeclaration.class);
     if (md_opt.isPresent()) {
       MethodDeclaration md = md_opt.get();
@@ -296,7 +296,7 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
     if (_arg == null) {
       _arg = new Hashtable<String, String>();
     }
-    super.visit(typ, _arg);
+    //super.visit(typ, _arg);
     NodeList<Type> args = new NodeList<>();
     args.add(typ);
     ClassOrInterfaceType n_Typ = new ClassOrInterfaceType(null, new SimpleName("Monitorable"), args);
@@ -486,11 +486,11 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
     for (Expression arg : mce.getArguments()) {
       if (arg instanceof MethodCallExpr) {
         res.addAll(processMethodCalls((MethodCallExpr) arg));
-        rhs_names.add(((MethodCallExpr) arg).getName());
-      } else {
-        for (MethodCallExpr arg_mce : arg.getChildNodesByType(MethodCallExpr.class)) {
-          res.addAll(processMethodCalls(arg_mce));
-        }
+      } else if (arg instanceof NameExpr) {
+        rhs_names.add(((NameExpr) arg).getName());
+      }
+      for (MethodCallExpr arg_mce : arg.getChildNodesByType(MethodCallExpr.class)) {
+        res.addAll(processMethodCalls(arg_mce));
       }
       for (NameExpr name : arg.getChildNodesByType(NameExpr.class)) {
         rhs_names.add(name.getName());
@@ -534,7 +534,7 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
       throw new UnsupportedProgramConstructException("Arrays are not supported");
     } else if (st.getExpression() instanceof AssignExpr) {
       NodeList<Statement> new_block = new NodeList<>();
-      AssignExpr ae = (AssignExpr) st.getExpression();
+      AssignExpr ae = (AssignExpr) st.clone().getExpression();
       if (ae.getValue() instanceof MethodCallExpr) {
         MethodCallExpr mce = (MethodCallExpr) ae.getValue();
         new_block.addAll(processMethodCalls(mce));
@@ -548,7 +548,7 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
       return flattenBlockStmt(new BlockStmt(new_block));
     } else if (st.getExpression() instanceof VariableDeclarationExpr) {
       NodeList<Statement> new_block = new NodeList<>();
-      VariableDeclarationExpr vde = (VariableDeclarationExpr) st.getExpression();
+      VariableDeclarationExpr vde = (VariableDeclarationExpr) st.clone().getExpression();
       for (VariableDeclarator vd : vde.getVariables()) {
         Optional<Expression> vd_init_opt = vd.getInitializer();
         if (vd_init_opt.isPresent()) {
@@ -570,12 +570,13 @@ public class SecurityVisitor extends ModifierVisitor<Hashtable<String, String>> 
       return flattenBlockStmt(new BlockStmt(new_block));
     } else if (st.getExpression() instanceof MethodCallExpr) {
       NodeList<Statement> new_block = new NodeList<>();
-      MethodCallExpr mce = (MethodCallExpr) st.getExpression();
+      MethodCallExpr mce = (MethodCallExpr) st.clone().getExpression();
       new_block.addAll(processMethodCalls(mce));
       super.visit(st, _arg);
       new_block.add(st);
       return flattenBlockStmt(new BlockStmt(new_block));
     } else {
+      super.visit(st, _arg);
       return st;
     }
   }
